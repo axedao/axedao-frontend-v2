@@ -6,7 +6,6 @@ import { Skeleton } from "@material-ui/lab";
 import { useEffect, useMemo, useState } from "react";
 import { loadAppDetails } from "../../slices/AppSlice";
 import { useWeb3Context } from "../../hooks/web3Context";
-import { Trans } from "@lingui/macro";
 
 function RebaseTimer() {
   const dispatch = useDispatch();
@@ -21,12 +20,27 @@ function RebaseTimer() {
     return state.app.currentBlock;
   });
 
+  const currentBlockTime = useSelector(state => {
+    return state.app.currentBlockTime;
+  });
+
+  const nextRebase = useSelector(state => {
+    return state.app.nextRebase;
+  });
+
+  const timeUntilRebase = useMemo(() => {
+    if (currentBlockTime && nextRebase) {
+      const seconds = nextRebase - currentBlockTime;
+      return prettifySeconds(seconds);
+    }
+  }, [currentBlockTime, nextRebase]);
+
   function initializeTimer() {
     const rebaseBlock = getRebaseBlock(currentBlock);
     const seconds = secondsUntilBlock(currentBlock, rebaseBlock);
     setSecondsToRebase(seconds);
     const prettified = prettifySeconds(seconds);
-    setRebaseString(prettified !== "" ? prettified : <Trans>Less than a minute</Trans>);
+    setRebaseString(prettified !== "" ? prettified : "Less than a minute");
   }
 
   // This initializes secondsToRebase as soon as currentBlock becomes available
@@ -57,7 +71,7 @@ function RebaseTimer() {
         setSecondsToRebase(secondsToRebase => secondsToRebase - SECONDS_TO_REFRESH);
         setSecondsToRefresh(SECONDS_TO_REFRESH);
         const prettified = prettifySeconds(secondsToRebase);
-        setRebaseString(prettified !== "" ? prettified : <Trans>Less than a minute</Trans>);
+        setRebaseString(prettified !== "" ? prettified : "Less than a minute");
       }
     }
     return () => clearInterval(interval);
@@ -66,17 +80,27 @@ function RebaseTimer() {
   return (
     <Box className="rebase-timer">
       <Typography variant="body2">
-        {currentBlock ? (
+        {/* {currentBlock ? (
           secondsToRebase > 0 ? (
             <>
-              <strong>{rebaseString}&nbsp;</strong>
-              <Trans>to next rebase</Trans>
+              <strong>{rebaseString}</strong> to next rebase
             </>
           ) : (
             <strong>rebasing</strong>
           )
         ) : (
           <Skeleton width="155px" />
+        )} */}
+        {currentBlockTime ? (
+          timeUntilRebase ? (
+            <>
+              <strong>{timeUntilRebase}</strong> to Next Rebase
+            </>
+          ) : (
+            <strong>Rebasing</strong>
+          )
+        ) : (
+          <Skeleton width="200px" />
         )}
       </Typography>
     </Box>

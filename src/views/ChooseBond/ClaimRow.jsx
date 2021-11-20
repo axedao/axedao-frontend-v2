@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { t, Trans } from "@lingui/macro";
 import { shorten, trim, prettyVestingPeriod } from "../../helpers";
 import { redeemBond } from "../../slices/BondSlice";
 import BondLogo from "../../components/BondLogo";
@@ -11,11 +10,13 @@ import "./choosebond.scss";
 import { Skeleton } from "@material-ui/lab";
 import { useWeb3Context, useBonds } from "src/hooks";
 import { isPendingTxn, txnButtonTextGeneralPending } from "src/slices/PendingTxnsSlice";
+import { axe_dai } from "src/helpers/AllBonds";
 
 export function ClaimBondTableData({ userBond }) {
   const dispatch = useDispatch();
+  let { bonds } = useBonds();
+  bonds = bonds.concat(axe_dai);
   const { address, chainID, provider } = useWeb3Context();
-  const { bonds, expiredBonds } = useBonds(chainID);
 
   const bond = userBond[1];
   const bondName = bond.bond;
@@ -26,17 +27,20 @@ export function ClaimBondTableData({ userBond }) {
     return state.app.currentBlock;
   });
 
+  const currentBlockTime = useSelector(state => {
+    return state.app.currentBlockTime;
+  });
+
   const pendingTransactions = useSelector(state => {
     return state.pendingTransactions;
   });
 
   const vestingPeriod = () => {
-    return prettyVestingPeriod(currentBlock, bond.bondMaturationBlock);
+    return prettyVestingPeriod(currentBlockTime, bond.bondMaturationTime);
   };
 
   async function onRedeem({ autostake }) {
-    // TODO (appleseed-expiredBonds): there may be a smarter way to refactor this
-    let currentBond = [...bonds, ...expiredBonds].find(bnd => bnd.name === bondName);
+    let currentBond = bonds.find(bnd => bnd.name === bondName);
     await dispatch(redeemBond({ address, bond: currentBond, networkID: chainID, provider, autostake }));
   }
 
@@ -75,8 +79,8 @@ export function ClaimBondTableData({ userBond }) {
 
 export function ClaimBondCardData({ userBond }) {
   const dispatch = useDispatch();
+  const { bonds } = useBonds();
   const { address, chainID, provider } = useWeb3Context();
-  const { bonds, expiredBonds } = useBonds(chainID);
 
   const bond = userBond[1];
   const bondName = bond.bond;
@@ -85,17 +89,20 @@ export function ClaimBondCardData({ userBond }) {
     return state.app.currentBlock;
   });
 
+  const currentBlockTime = useSelector(state => {
+    return state.app.currentBlockTime;
+  });
+
   const pendingTransactions = useSelector(state => {
     return state.pendingTransactions;
   });
 
   const vestingPeriod = () => {
-    return prettyVestingPeriod(currentBlock, bond.bondMaturationBlock);
+    return prettyVestingPeriod(currentBlockTime, bond.bondMaturationTime);
   };
 
   async function onRedeem({ autostake }) {
-    // TODO (appleseed-expiredBonds): there may be a smarter way to refactor this
-    let currentBond = [...bonds, ...expiredBonds].find(bnd => bnd.name === bondName);
+    let currentBond = bonds.find(bnd => bnd.name === bondName);
     await dispatch(redeemBond({ address, bond: currentBond, networkID: chainID, provider, autostake }));
   }
 
@@ -130,7 +137,7 @@ export function ClaimBondCardData({ userBond }) {
           onClick={() => onRedeem({ autostake: false })}
         >
           <Typography variant="h5">
-            {txnButtonTextGeneralPending(pendingTransactions, "redeem_bond_" + bondName, t`Claim`)}
+            {txnButtonTextGeneralPending(pendingTransactions, "redeem_bond_" + bondName, "Claim")}
           </Typography>
         </Button>
         <Button variant="outlined" color="primary" onClick={() => onRedeem({ autostake: true })}>
@@ -138,7 +145,7 @@ export function ClaimBondCardData({ userBond }) {
             {txnButtonTextGeneralPending(
               pendingTransactions,
               "redeem_bond_" + bondName + "_autostake",
-              t`Claim and Stake`,
+              "Claim and Stake",
             )}
           </Typography>
         </Button>

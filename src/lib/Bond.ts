@@ -2,11 +2,9 @@ import { StaticJsonRpcProvider, JsonRpcSigner } from "@ethersproject/providers";
 import { ethers } from "ethers";
 
 import { abi as ierc20Abi } from "src/abi/IERC20.json";
-import { getTokenPrice } from "src/helpers";
-import { getBondCalculator } from "src/helpers/BondCalculator";
-import { EthContract, PairContract } from "src/typechain";
+import { getBondCalculator, getBondCalculator1 } from "src/helpers/BondCalculator";
 import { addresses } from "src/constants";
-import React from "react";
+import React, { ReactNode } from "react";
 
 export enum NetworkID {
   Mainnet = 1,
@@ -74,21 +72,12 @@ export abstract class Bond {
     this.bondToken = bondOpts.bondToken;
   }
 
-  /**
-   * makes isAvailable accessible within Bonds.ts
-   * @param networkID
-   * @returns boolean
-   */
-  getAvailability(networkID: NetworkID) {
-    return this.isAvailable[networkID];
-  }
-
   getAddressForBond(networkID: NetworkID) {
     return this.networkAddrs[networkID].bondAddress;
   }
   getContractForBond(networkID: NetworkID, provider: StaticJsonRpcProvider | JsonRpcSigner) {
     const bondAddress = this.getAddressForBond(networkID);
-    return new ethers.Contract(bondAddress, this.bondContractABI, provider) as EthContract;
+    return new ethers.Contract(bondAddress, this.bondContractABI, provider);
   }
 
   getAddressForReserve(networkID: NetworkID) {
@@ -96,19 +85,14 @@ export abstract class Bond {
   }
   getContractForReserve(networkID: NetworkID, provider: StaticJsonRpcProvider | JsonRpcSigner) {
     const bondAddress = this.getAddressForReserve(networkID);
-    return new ethers.Contract(bondAddress, this.reserveContract, provider) as PairContract;
+    return new ethers.Contract(bondAddress, this.reserveContract, provider);
   }
 
-  // TODO (appleseed): improve this logic
   async getBondReservePrice(networkID: NetworkID, provider: StaticJsonRpcProvider | JsonRpcSigner) {
-    let marketPrice: number;
-    if (this.isLP) {
-      const pairContract = this.getContractForReserve(networkID, provider);
-      const reserves = await pairContract.getReserves();
-      marketPrice = Number(reserves[1].toString()) / Number(reserves[0].toString()) / 10 ** 9;
-    } else {
-      marketPrice = await getTokenPrice("convex-finance");
-    }
+    const pairContract = this.getContractForReserve(networkID, provider);
+    const reserves = await pairContract.getReserves();
+    const marketPrice = reserves[1] / reserves[0] / Math.pow(10, 9);
+
     return marketPrice;
   }
 }
@@ -135,12 +119,22 @@ export class LPBond extends Bond {
   async getTreasuryBalance(networkID: NetworkID, provider: StaticJsonRpcProvider) {
     const token = this.getContractForReserve(networkID, provider);
     const tokenAddress = this.getAddressForReserve(networkID);
-    const bondCalculator = getBondCalculator(networkID, provider);
+    let bondCalculator;
+    if (this.name == "axe_usdc_lp") {
+      bondCalculator = getBondCalculator1(networkID, provider);
+    } else {
+      bondCalculator = getBondCalculator(networkID, provider);
+    }
     const tokenAmount = await token.balanceOf(addresses[networkID].TREASURY_ADDRESS);
     const valuation = await bondCalculator.valuation(tokenAddress, tokenAmount);
     const markdown = await bondCalculator.markdown(tokenAddress);
-    let tokenUSD = (Number(valuation.toString()) / Math.pow(10, 9)) * (Number(markdown.toString()) / Math.pow(10, 18));
-    return Number(tokenUSD.toString());
+    let tokenUSD;
+    if (this.name == "axe_usdc_lp") {
+      tokenUSD = (valuation / Math.pow(10, 9)) * (markdown / Math.pow(10, 6));
+    } else {
+      tokenUSD = (valuation / Math.pow(10, 9)) * (markdown / Math.pow(10, 18));
+    }
+    return tokenUSD;
   }
 }
 
@@ -162,7 +156,11 @@ export class StableBond extends Bond {
   async getTreasuryBalance(networkID: NetworkID, provider: StaticJsonRpcProvider) {
     let token = this.getContractForReserve(networkID, provider);
     let tokenAmount = await token.balanceOf(addresses[networkID].TREASURY_ADDRESS);
-    return Number(tokenAmount.toString()) / Math.pow(10, 18);
+    let decimals = 18;
+    if (this.name == "usdc" || this.name == "usdt") {
+      decimals = 6;
+    }
+    return tokenAmount / Math.pow(10, decimals);
   }
 }
 

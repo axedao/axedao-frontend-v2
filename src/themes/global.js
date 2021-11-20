@@ -15,20 +15,6 @@ const breakpointValues = {
 //   browser: 1333,
 // };
 
-/**
- * will remove opacity from rgbaString when backdrop-filter is not supported
- * @param {String} rgbaString should be the rgba string
- * @returns modified rgbaString
- */
-export const handleBackdropFilter = rgbaString => {
-  const supported = CSS.supports("(-webkit-backdrop-filter: none)") || CSS.supports("(backdrop-filter: none)");
-  if (!supported) {
-    // make the opacity == 0.9;
-    rgbaString = rgbaString.replace(/[\d\.]+\)$/g, "0.9)");
-  }
-  return rgbaString;
-};
-
 const commonSettings = {
   direction: "ltr",
   typography: {
@@ -46,24 +32,24 @@ const commonSettings = {
       fontSize: "1.75rem",
     },
     h4: {
-      fontSize: "1.5rem",
+      fontSize: "2rem",
     },
     h5: {
-      fontSize: "1.25rem",
+      fontSize: "1.5rem",
       letterSpacing: "0.4px",
     },
     h6: {
-      fontSize: "1rem",
+      fontSize: "1.3rem",
     },
     body1: {
-      fontSize: "0.875rem",
+      fontSize: "1.2rem",
       fontWeight: 500,
-      lineHeight: 1,
+      lineHeight: 1.2,
     },
     body2: {
-      fontSize: "0.75rem",
+      fontSize: "1.1rem",
       fontWeight: 400,
-      lineHeight: 1,
+      lineHeight: 1.2,
     },
     button: {
       textTransform: "none",
@@ -92,9 +78,10 @@ const commonSettings = {
         "&.ohm-card": {
           padding: "20px 30px 30px 30px",
           borderRadius: "10px",
-          maxWidth: "833px",
+          // maxWidth: "52rem",
           width: "97%",
           marginBottom: "1.8rem",
+          borderRadius: "10px",
           overflow: "hidden",
         },
         "&.ohm-menu": {
@@ -151,7 +138,6 @@ const commonSettings = {
         // backdropFilter: "blur(33px)",
         backgroundColor: "inherit",
         padding: 0,
-        zIndex: 7,
       },
     },
     MuiBackdrop: {
@@ -180,9 +166,17 @@ const commonSettings = {
       containedPrimary: {
         border: 0,
         fontWeight: "500",
+        color: "#fff",
+        "&:hover": {
+          backgroundColor: "#ef003f",
+          filter: "brightness(1.2)",
+        },
       },
       containedSecondary: {
         fontWeight: "400",
+        "&:hover": {
+          backgroundColor: "transparent",
+        },
       },
       outlinedPrimary: {
         height: "33px",
@@ -236,6 +230,7 @@ const commonSettings = {
     MuiTab: {
       root: {
         minWidth: "min-content !important",
+        width: "min-content",
         padding: "0px",
         margin: "0px 10px",
         fontWeight: 400,

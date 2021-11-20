@@ -1,13 +1,13 @@
 import { createTheme, responsiveFontSizes } from "@material-ui/core/styles";
 import fonts from "./fonts";
-import commonSettings, { handleBackdropFilter } from "./global.js";
+import commonSettings from "./global.js";
 
 const lightTheme = {
   color: "#253449",
-  gold: "#F8CC82",
-  gray: "#A3A3A3",
+  gold: "#ef003f",
+  gray: "#CCCCCC",
   blueish_gray: "#768299",
-  textHighlightColor: "#93AEBC", // "#F4D092",
+  textHighlightColor: "#93AEBC", // "#ef003f",
   backgroundColor: "#AFCDE9",
   // background:
   // "radial-gradient(circle at 25% 0%, rgba(227,255,240,.5), rgba(227,255,240,0) 50%), radial-gradient(circle at 80% 80%, rgba(131,165,203,.5), rgba(131,165,203,0) 50%)",
@@ -15,7 +15,7 @@ const lightTheme = {
   paperBg: "rgba(255, 255, 255, 0.6)",
   modalBg: "#FAFAFAEF",
   popoverBg: "rgba(255, 255, 255, 0.95)",
-  menuBg: handleBackdropFilter("rgba(255, 255, 255, 0.5)"),
+  menuBg: "rgba(255, 255, 255, 0.5)",
   backdropBg: "rgba(200, 200, 200, 0.4)",
   largeTextColor: "#759AAE",
   activeLinkColor: "#222222",
@@ -26,7 +26,7 @@ const lightTheme = {
   // these need fixing
   primaryButtonHoverColor: "#333333",
   secondaryButtonHoverBG: "rgba(54, 56, 64, 1)",
-  outlinedPrimaryButtonHoverBG: "#F8CC82",
+  outlinedPrimaryButtonHoverBG: "#ef003f",
   outlinedPrimaryButtonHoverColor: "#333333",
   outlinedSecondaryButtonHoverBG: "#FCFCFC",
   outlinedSecondaryButtonHoverColor: "#333333",
@@ -271,7 +271,7 @@ export const light = responsiveFontSizes(
             },
             "&:active": {
               color: lightTheme.gold,
-              borderBottom: "#F8CC82",
+              borderBottom: "#ef003f",
             },
           },
           textSecondary: {

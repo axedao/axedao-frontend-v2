@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { t, Trans } from "@lingui/macro";
 import { ClaimBondTableData, ClaimBondCardData } from "./ClaimRow";
 import { txnButtonText, isPendingTxn, txnButtonTextGeneralPending } from "src/slices/PendingTxnsSlice";
 import { redeemAllBonds, redeemBond } from "src/slices/BondSlice";
@@ -26,7 +25,7 @@ import { useSelector, useDispatch } from "react-redux";
 function ClaimBonds({ activeBonds }) {
   const dispatch = useDispatch();
   const { provider, address, chainID } = useWeb3Context();
-  const { bonds } = useBonds(chainID);
+  const { bonds } = useBonds();
 
   const [numberOfBonds, setNumberOfBonds] = useState(0);
   const isSmallScreen = useMediaQuery("(max-width: 733px)"); // change to breakpoint query
@@ -71,18 +70,10 @@ function ClaimBonds({ activeBonds }) {
                   <Table aria-label="Claimable bonds">
                     <TableHead>
                       <TableRow>
-                        <TableCell align="center">
-                          <Trans>Bond</Trans>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Trans>Claimable</Trans>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Trans>Pending</Trans>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Trans>Fully Vested</Trans>
-                        </TableCell>
+                        <TableCell align="center">Bond</TableCell>
+                        <TableCell align="center">Claimable</TableCell>
+                        <TableCell align="center">Pending</TableCell>
+                        <TableCell align="right">Fully Vested</TableCell>
                         <TableCell align="right"></TableCell>
                       </TableRow>
                     </TableHead>
@@ -115,7 +106,7 @@ function ClaimBonds({ activeBonds }) {
                         onRedeemAll({ autostake: false });
                       }}
                     >
-                      {txnButtonTextGeneralPending(pendingTransactions, "redeem_all_bonds", t`Claim all`)}
+                      {txnButtonTextGeneralPending(pendingTransactions, "redeem_all_bonds", "Claim all")}
                     </Button>
 
                     <Button
@@ -132,7 +123,7 @@ function ClaimBonds({ activeBonds }) {
                       {txnButtonTextGeneralPending(
                         pendingTransactions,
                         "redeem_all_bonds_autostake",
-                        t`Claim all and Stake`,
+                        "Claim all and Stake",
                       )}
                     </Button>
                   </>

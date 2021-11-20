@@ -1,11 +1,11 @@
-import { ethers, BigNumber, BigNumberish } from "ethers";
+import { ethers, BigNumber } from "ethers";
 import { contractForRedeemHelper } from "../helpers";
-import { getBalances, calculateUserBondDetails } from "./AccountSlice";
+import { getBalances, calculateUserBondDetails, loadAccountDetails } from "./AccountSlice";
 import { findOrLoadMarketPrice } from "./AppSlice";
 import { error, info } from "./MessagesSlice";
 import { clearPendingTxn, fetchPendingTxns } from "./PendingTxnsSlice";
 import { createAsyncThunk, createSelector, createSlice } from "@reduxjs/toolkit";
-import { getBondCalculator } from "src/helpers/BondCalculator";
+import { getBondCalculator, getBondCalculator1 } from "src/helpers/BondCalculator";
 import { RootState } from "src/store";
 import {
   IApproveBondAsyncThunk,
@@ -70,32 +70,33 @@ export interface IBondDetails {
   maxBondPrice: number;
   bondPrice: number;
   marketPrice: number;
+  isSoldOut?: boolean;
 }
 export const calcBondDetails = createAsyncThunk(
   "bonding/calcBondDetails",
   async ({ bond, value, provider, networkID }: ICalcBondDetailsAsyncThunk, { dispatch }): Promise<IBondDetails> => {
-    if (!value || value === "") {
+    if (!value) {
       value = "0";
     }
     const amountInWei = ethers.utils.parseEther(value);
 
-    let bondPrice = BigNumber.from(0),
+    // const vestingTerm = VESTING_TERM; // hardcoded for now
+    let bondPrice = 0,
       bondDiscount = 0,
       valuation = 0,
-      bondQuote: BigNumberish = BigNumber.from(0);
+      bondQuote = 0;
     const bondContract = bond.getContractForBond(networkID, provider);
     const bondCalcContract = getBondCalculator(networkID, provider);
 
     const terms = await bondContract.terms();
     const maxBondPrice = await bondContract.maxPayout();
-    let debtRatio: BigNumberish;
-    // TODO (appleseed): improve this logic
-    if (bond.name === "cvx") {
-      debtRatio = await bondContract.debtRatio();
-    } else {
-      debtRatio = await bondContract.standardizedDebtRatio();
+    const debtRatio = (await bondContract.standardizedDebtRatio()) / Math.pow(10, 9);
+    const totalDebt = await bondContract.totalDebt();
+    const maxDebt = terms.maxDebt;
+    let isSoldOut = false;
+    if (Number(totalDebt) >= Number(maxDebt)) {
+      isSoldOut = true;
     }
-    debtRatio = Number(debtRatio.toString()) / Math.pow(10, 9);
 
     let marketPrice: number = 0;
     try {
@@ -109,69 +110,70 @@ export const calcBondDetails = createAsyncThunk(
     }
 
     try {
-      // TODO (appleseed): improve this logic
-      if (bond.name === "cvx") {
-        let bondPriceRaw = await bondContract.bondPrice();
-        let assetPriceUSD = await bond.getBondReservePrice(networkID, provider);
-        bondPrice = bondPriceRaw.mul(BigNumber.from(String(assetPriceUSD * 10 ** 14)));
-      } else {
-        bondPrice = await bondContract.bondPriceInUSD();
-      }
-      bondDiscount = (marketPrice * Math.pow(10, 18) - Number(bondPrice.toString())) / Number(bondPrice.toString()); // 1 - bondPrice / (bondPrice * Math.pow(10, 9));
+      bondPrice = await bondContract.bondPriceInUSD();
+      // bondDiscount = (marketPrice * Math.pow(10, 9) - bondPrice) / bondPrice; // 1 - bondPrice / (bondPrice * Math.pow(10, 9));
+      bondDiscount = (marketPrice * Math.pow(10, 18) - bondPrice) / bondPrice; // 1 - bondPrice / (bondPrice * Math.pow(10, 9));
     } catch (e) {
       console.log("error getting bondPriceInUSD", e);
     }
 
     if (Number(value) === 0) {
       // if inputValue is 0 avoid the bondQuote calls
-      bondQuote = BigNumber.from(0);
+      bondQuote = 0;
     } else if (bond.isLP) {
-      valuation = Number(
-        (await bondCalcContract.valuation(bond.getAddressForReserve(networkID), amountInWei)).toString(),
-      );
+      valuation = await bondCalcContract.valuation(bond.getAddressForReserve(networkID), amountInWei);
       bondQuote = await bondContract.payoutFor(valuation);
-      if (!amountInWei.isZero() && Number(bondQuote.toString()) < 100000) {
-        bondQuote = BigNumber.from(0);
+      if (!amountInWei.isZero() && bondQuote < 100000) {
+        bondQuote = 0;
         const errorString = "Amount is too small!";
         dispatch(error(errorString));
       } else {
-        bondQuote = Number(bondQuote.toString()) / Math.pow(10, 9);
+        bondQuote = bondQuote / Math.pow(10, 9);
       }
     } else {
       // RFV = DAI
       bondQuote = await bondContract.payoutFor(amountInWei);
 
-      if (!amountInWei.isZero() && Number(bondQuote.toString()) < 100000000000000) {
-        bondQuote = BigNumber.from(0);
+      if (!amountInWei.isZero() && bondQuote < 100000000000000) {
+        bondQuote = 0;
         const errorString = "Amount is too small!";
         dispatch(error(errorString));
       } else {
-        bondQuote = Number(bondQuote.toString()) / Math.pow(10, 18);
+        bondQuote = bondQuote / Math.pow(10, 18);
       }
     }
 
     // Display error if user tries to exceed maximum.
-    if (!!value && parseFloat(bondQuote.toString()) > Number(maxBondPrice.toString()) / Math.pow(10, 9)) {
+    if (!!value && parseFloat(bondQuote.toString()) > maxBondPrice / Math.pow(10, 9)) {
       const errorString =
         "You're trying to bond more than the maximum payout available! The maximum bond payout is " +
-        (Number(maxBondPrice.toString()) / Math.pow(10, 9)).toFixed(2).toString() +
-        " OHM.";
+        (maxBondPrice / Math.pow(10, 9)).toFixed(2).toString() +
+        " AXE.";
       dispatch(error(errorString));
     }
 
     // Calculate bonds purchased
     let purchased = await bond.getTreasuryBalance(networkID, provider);
-
+    if (bond.name == "usdc" || bond.name == "usdt" || bond.name == "axe_usdc_lp") {
+      bondPrice = bondPrice / Math.pow(10, 6);
+      bondDiscount = bondDiscount / Math.pow(10, 12) - 1;
+    } else {
+      bondPrice = bondPrice / Math.pow(10, 18);
+    }
+    if (isSoldOut) {
+      bondDiscount = -0.1;
+    }
     return {
       bond: bond.name,
       bondDiscount,
-      debtRatio: Number(debtRatio.toString()),
-      bondQuote: Number(bondQuote.toString()),
+      debtRatio,
+      bondQuote,
       purchased,
-      vestingTerm: Number(terms.vestingTerm.toString()),
-      maxBondPrice: Number(maxBondPrice.toString()) / Math.pow(10, 9),
-      bondPrice: Number(bondPrice.toString()) / Math.pow(10, 18),
+      vestingTerm: Number(terms.vestingTerm),
+      maxBondPrice: maxBondPrice / Math.pow(10, 9),
+      bondPrice: bondPrice,
       marketPrice: marketPrice,
+      isSoldOut: isSoldOut,
     };
   },
 );
@@ -182,14 +184,18 @@ export const bondAsset = createAsyncThunk(
     const depositorAddress = address;
     const acceptedSlippage = slippage / 100 || 0.005; // 0.5% as default
     // parseUnits takes String => BigNumber
-    const valueInWei = ethers.utils.parseUnits(value.toString(), "ether");
+    let valueInWei = ethers.utils.parseUnits(value.toString(), "ether");
+    if (bond.name == "usdc" || bond.name == "usdt") {
+      valueInWei = valueInWei.div(Math.pow(10, 12));
+    }
+    
     let balance;
     // Calculate maxPremium based on premium and slippage.
     // const calculatePremium = await bonding.calculatePremium();
     const signer = provider.getSigner();
     const bondContract = bond.getContractForBond(networkID, signer);
     const calculatePremium = await bondContract.bondPrice();
-    const maxPremium = Math.round(Number(calculatePremium.toString()) * (1 + acceptedSlippage));
+    const maxPremium = Math.round(calculatePremium * (1 + acceptedSlippage));
 
     // Deposit the bond
     let bondTx;
@@ -199,7 +205,7 @@ export const bondAsset = createAsyncThunk(
       type: "Bond",
       bondName: bond.displayName,
       approved: true,
-      txHash: "",
+      txHash: null,
     };
     try {
       bondTx = await bondContract.deposit(valueInWei, maxPremium, depositorAddress);
@@ -221,7 +227,7 @@ export const bondAsset = createAsyncThunk(
       } else dispatch(error(rpcError.message));
     } finally {
       if (bondTx) {
-        segmentUA(uaData);
+        // segmentUA(uaData);
         dispatch(clearPendingTxn(bondTx.hash));
       }
     }
@@ -246,7 +252,7 @@ export const redeemBond = createAsyncThunk(
       bondName: bond.displayName,
       autoStake: autostake,
       approved: true,
-      txHash: "",
+      txHash: null,
     };
     try {
       redeemTx = await bondContract.redeem(address, autostake === true);
@@ -265,8 +271,9 @@ export const redeemBond = createAsyncThunk(
       dispatch(error((e as IJsonRPCError).message));
     } finally {
       if (redeemTx) {
-        segmentUA(uaData);
+        // segmentUA(uaData);
         dispatch(clearPendingTxn(redeemTx.hash));
+        dispatch(loadAccountDetails({ networkID, address, provider }));
       }
     }
   },
@@ -295,10 +302,9 @@ export const redeemAllBonds = createAsyncThunk(
 
       await redeemAllTx.wait();
 
-      bonds &&
-        bonds.forEach(async bond => {
-          dispatch(calculateUserBondDetails({ address, bond, networkID, provider }));
-        });
+      await Promise.all(
+        bonds && bonds.map(bond => dispatch(calculateUserBondDetails({ address, bond, networkID, provider }))),
+      );
 
       dispatch(getBalances({ address, networkID, provider }));
     } catch (e: unknown) {
@@ -306,6 +312,7 @@ export const redeemAllBonds = createAsyncThunk(
     } finally {
       if (redeemAllTx) {
         dispatch(clearPendingTxn(redeemAllTx.hash));
+        dispatch(loadAccountDetails({ networkID, address, provider }));
       }
     }
   },

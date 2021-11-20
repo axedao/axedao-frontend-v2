@@ -1,6 +1,8 @@
 import { BigNumber, ethers } from "ethers";
 import { addresses } from "../constants";
-import { trim } from "src/helpers";
+import { abi as PrizePool } from "../abi/33-together/PrizePoolAbi2.json";
+import { abi as AwardPool } from "../abi/33-together/AwardAbi2.json";
+import { abi as SOhmAbi } from "../abi/sOHM.json";
 
 /**
  * Calculates user's odds of winning based on their pool balance
@@ -71,17 +73,8 @@ export const poolTogetherUILinks = (chainID: number): Array<string> => {
     ];
   } else {
     return [
-      `https://app.pooltogether.com/pools/mainnet/sOHM`,
+      `https://community.pooltogether.com/pools/mainnet/${contractAddress}/home`,
       `https://community.pooltogether.com/pools/mainnet/${contractAddress}/manage#stats`,
     ];
   }
 };
-
-/**
- * Utility to simplify trimming odds when there's a chance it'll be a string like ngmi
- *
- * @param odds current odds as number or a string representing 0 odds
- * @param precision the amount of decimal places to display, defaults to 4
- */
-export const trimOdds = (odds: number | string, precision: number = 4) =>
-  typeof odds === "string" ? odds : trim(odds, precision);

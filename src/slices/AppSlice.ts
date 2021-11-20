@@ -1,60 +1,39 @@
-import { ethers } from "ethers";
+import { BigNumber, ethers } from 'ethers';
 import { addresses } from "../constants";
-import { abi as OlympusStakingv2ABI } from "../abi/OlympusStakingv2.json";
+import { abi as OlympusStakingv2 } from "../abi/OlympusStakingv2.json";
+import { abi as sOHM } from "../abi/sOHM.json";
+import { abi as ohmDAI } from "../abi/reserves/OhmDai.json";
+import { abi as ierc20Abi } from "../abi/IERC20.json";
 import { abi as sOHMv2 } from "../abi/sOhmv2.json";
+import { abi as AxeCirculatingSupply } from "../abi/AxeCirculatingSupply.json";
 import { setAll, getTokenPrice, getMarketPrice } from "../helpers";
-import apollo from "../lib/apolloClient";
 import { createSlice, createSelector, createAsyncThunk } from "@reduxjs/toolkit";
 import { RootState } from "src/store";
 import { IBaseAsyncThunk } from "./interfaces";
-import { OlympusStakingv2, SOhmv2 } from "../typechain";
+import { calcRunway } from "src/helpers/Runway";
 
-interface IProtocolMetrics {
-  readonly timestamp: string;
-  readonly ohmCirculatingSupply: string;
-  readonly sOhmCirculatingSupply: string;
-  readonly totalSupply: string;
-  readonly ohmPrice: string;
-  readonly marketCap: string;
-  readonly totalValueLocked: string;
-  readonly treasuryMarketValue: string;
-  readonly nextEpochRebase: string;
-  readonly nextDistributedOhm: string;
-}
+const initialState = {
+  loading: false,
+  loadingMarketPrice: false,
+};
+
+const circulatingSupply = {
+  inputs: [],
+  name: "circulatingSupply",
+  outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+  stateMutability: "view",
+  type: "function",
+};
 
 export const loadAppDetails = createAsyncThunk(
   "app/loadAppDetails",
   async ({ networkID, provider }: IBaseAsyncThunk, { dispatch }) => {
-    const protocolMetricsQuery = `
-  query {
-    _meta {
-      block {
-        number
-      }
-    }
-    protocolMetrics(first: 1, orderBy: timestamp, orderDirection: desc) {
-      timestamp
-      ohmCirculatingSupply
-      sOhmCirculatingSupply
-      totalSupply
-      ohmPrice
-      marketCap
-      totalValueLocked
-      treasuryMarketValue
-      nextEpochRebase
-      nextDistributedOhm
-    }
-  }
-`;
+    const stakingContract = new ethers.Contract(
+      addresses[networkID].STAKING_ADDRESS as string,
+      OlympusStakingv2,
+      provider,
+    );
 
-    const graphData = await apollo<{ protocolMetrics: IProtocolMetrics[] }>(protocolMetricsQuery);
-
-    if (!graphData || graphData == null) {
-      console.error("Returned a null response when querying TheGraph");
-      return;
-    }
-
-    const stakingTVL = parseFloat(graphData.data.protocolMetrics[0].totalValueLocked);
     // NOTE (appleseed): marketPrice from Graph was delayed, so get CoinGecko price
     // const marketPrice = parseFloat(graphData.data.protocolMetrics[0].ohmPrice);
     let marketPrice;
@@ -69,60 +48,79 @@ export const loadAppDetails = createAsyncThunk(
       return;
     }
 
-    const marketCap = parseFloat(graphData.data.protocolMetrics[0].marketCap);
-    const circSupply = parseFloat(graphData.data.protocolMetrics[0].ohmCirculatingSupply);
-    const totalSupply = parseFloat(graphData.data.protocolMetrics[0].totalSupply);
-    const treasuryMarketValue = parseFloat(graphData.data.protocolMetrics[0].treasuryMarketValue);
-    // const currentBlock = parseFloat(graphData.data._meta.block.number);
+    const pairContract = new ethers.Contract(addresses[networkID].AXE_DAI_LP as string, ohmDAI, provider);
+    const sAXEMainContract = new ethers.Contract(addresses[networkID].SAXE_ADDRESS as string, sOHMv2, provider);
+    const axeContract = new ethers.Contract(addresses[networkID].AXE_ADDRESS as string, ierc20Abi, provider);
+    const axeCirculatingSupply = new ethers.Contract(
+      addresses[networkID].AXE_CIRCULATING_SUPPLY as string,
+      AxeCirculatingSupply,
+      provider,
+    );
+
+    const [axeBalance, sAxeCirc, circ, total, epoch, total_lp, axeDAIBalance] = await Promise.all([
+      axeContract.balanceOf(addresses[networkID].STAKING_ADDRESS),
+      (await sAXEMainContract.circulatingSupply()) / 1e9,
+      axeCirculatingSupply.AXECirculatingSupply(),
+      axeContract.totalSupply(),
+      stakingContract.epoch(),
+      pairContract.totalSupply(),
+      pairContract.balanceOf(addresses[networkID].TREASURY_ADDRESS)
+    ])
+
+    const stakingTVL = (axeBalance * marketPrice) / 1e9;
+    const circSupply = circ / 1e9;
+    const totalSupply = total / 1000000000;
+    const marketCap = marketPrice * circSupply;
+    const pol = axeDAIBalance.mul(100).div(total_lp).toNumber() / 100;
+
+    // Calculating staking
+    const stakingReward = (epoch.distribute / 1e9);
+    const stakingRebase = stakingReward / circSupply;
+    const fiveDayRate = Math.pow(1 + stakingRebase, 5 * 3) - 1;
+    const stakingAPY = Math.pow(1 + stakingRebase, 365 * 3) - 1;
+    
+    const stakingRatio = sAxeCirc / circSupply;
+
+    // Current index
+    let currentIndex = await stakingContract.index();
+    currentIndex = currentIndex;
+    const nextRebase = epoch.endTime.toNumber();
+
+    const runway = await calcRunway(circSupply, stakingRebase, { networkID, provider });
 
     if (!provider) {
       console.error("failed to connect to provider, please connect your wallet");
       return {
         stakingTVL,
+        stakingRatio,
         marketPrice,
         marketCap,
         circSupply,
         totalSupply,
-        treasuryMarketValue,
-      } as IAppData;
+        runway,
+        pol,
+      };
     }
     const currentBlock = await provider.getBlockNumber();
-
-    const stakingContract = new ethers.Contract(
-      addresses[networkID].STAKING_ADDRESS as string,
-      OlympusStakingv2ABI,
-      provider,
-    ) as OlympusStakingv2;
-
-    const sohmMainContract = new ethers.Contract(
-      addresses[networkID].SOHM_ADDRESS as string,
-      sOHMv2,
-      provider,
-    ) as SOhmv2;
-
-    // Calculating staking
-    const epoch = await stakingContract.epoch();
-    const stakingReward = epoch.distribute;
-    const circ = await sohmMainContract.circulatingSupply();
-    const stakingRebase = Number(stakingReward.toString()) / Number(circ.toString());
-    const fiveDayRate = Math.pow(1 + stakingRebase, 5 * 3) - 1;
-    const stakingAPY = Math.pow(1 + stakingRebase, 365 * 3) - 1;
-
-    // Current index
-    const currentIndex = await stakingContract.index();
+    const currentBlockTime = (await provider.getBlock(currentBlock)).timestamp;
 
     return {
       currentIndex: ethers.utils.formatUnits(currentIndex, "gwei"),
       currentBlock,
+      currentBlockTime,
       fiveDayRate,
       stakingAPY,
       stakingTVL,
+      stakingRatio,
       stakingRebase,
       marketCap,
       marketPrice,
       circSupply,
       totalSupply,
-      treasuryMarketValue,
+      // treasuryMarketValue,
+      nextRebase,
+      runway,
+      pol,
     } as IAppData;
   },
 );
@@ -177,32 +175,27 @@ const loadMarketPrice = createAsyncThunk("app/loadMarketPrice", async ({ network
     marketPrice = await getMarketPrice({ networkID, provider });
     marketPrice = marketPrice / Math.pow(10, 9);
   } catch (e) {
-    marketPrice = await getTokenPrice("olympus");
+    marketPrice = await getTokenPrice("axedao");
   }
   return { marketPrice };
 });
 
 interface IAppData {
-  readonly circSupply?: number;
+  readonly circSupply: number;
   readonly currentIndex?: string;
   readonly currentBlock?: number;
+  readonly currentBlockTime?: number;
   readonly fiveDayRate?: number;
-  readonly loading: boolean;
-  readonly loadingMarketPrice: boolean;
-  readonly marketCap?: number;
-  readonly marketPrice?: number;
+  readonly marketCap: number;
+  readonly marketPrice: number;
   readonly stakingAPY?: number;
   readonly stakingRebase?: number;
-  readonly stakingTVL?: number;
-  readonly totalSupply?: number;
+  readonly stakingTVL: number;
+  readonly stakingRatio?: number;
+  readonly totalSupply: number;
   readonly treasuryBalance?: number;
-  readonly treasuryMarketValue?: number;
+  readonly nextRebase?: number;
 }
-
-const initialState: IAppData = {
-  loading: false,
-  loadingMarketPrice: false,
-};
 
 const appSlice = createSlice({
   name: "app",

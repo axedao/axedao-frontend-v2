@@ -3,7 +3,6 @@ import { Paper, Grid, Typography, Box, Zoom } from "@material-ui/core";
 import { trim } from "../../helpers";
 import "./dashboard.scss";
 import { Skeleton } from "@material-ui/lab";
-import { t, Trans } from "@lingui/macro";
 
 function Dashboard() {
   // Use marketPrice as indicator of loading.
@@ -27,9 +26,7 @@ function Dashboard() {
         <Grid item lg={4} md={4} sm={3} xs={5} className="olympus-card">
           <Zoom in={true}>
             <Paper className="ohm-card">
-              <Typography variant="h6">
-                <Trans>Price</Trans>
-              </Typography>
+              <Typography variant="h6">Price</Typography>
               <Typography variant="h5">
                 {isAppLoading ? <Skeleton width="100px" /> : `$${trim(marketPrice, 2)}`}
               </Typography>
@@ -40,9 +37,7 @@ function Dashboard() {
         <Grid item lg={4} md={4} sm={4} xs={7}>
           <Zoom in={true}>
             <Paper className="ohm-card">
-              <Typography variant="h6">
-                <Trans>Market Cap</Trans>
-              </Typography>
+              <Typography variant="h6">Market Cap</Typography>
               <Typography variant="h5">
                 {isAppLoading ? (
                   <Skeleton width="160px" />
@@ -62,9 +57,7 @@ function Dashboard() {
         <Grid item lg={4} md={4} sm={5} xs={12}>
           <Zoom in={true}>
             <Paper className="ohm-card">
-              <Typography variant="h6">
-                <Trans>Supply (circulating/total)</Trans>
-              </Typography>
+              <Typography variant="h6">Supply (circulating/total)</Typography>
               <Typography variant="h5">
                 {isAppLoading ? (
                   <Skeleton width="250px" />

@@ -5,6 +5,7 @@ import WalletConnectProvider from "@walletconnect/web3-provider";
 import { IFrameEthereumProvider } from "@ledgerhq/iframe-provider";
 import { EnvHelper } from "../helpers/Environment";
 import { NodeHelper } from "src/helpers/NodeHelper";
+import { error } from "src/slices/MessagesSlice";
 
 /**
  * kept as function to mimic `getMainnetURI()`
@@ -41,14 +42,11 @@ function getMainnetURI(): string {
   Types
 */
 type onChainProvider = {
-  connect: () => Promise<Web3Provider | undefined>;
+  connect: () => void;
   disconnect: () => void;
-  hasCachedProvider: () => boolean;
-  address: string;
-  chainID: number;
-  connected: boolean;
   provider: JsonRpcProvider;
-  uri: string;
+  address: string;
+  connected: Boolean;
   web3Modal: Web3Modal;
 };
 
@@ -66,7 +64,7 @@ export const useWeb3Context = () => {
     );
   }
   const { onChainProvider } = web3Context;
-  return useMemo<onChainProvider>(() => {
+  return useMemo(() => {
     return { ...onChainProvider };
   }, [web3Context]);
 };
@@ -105,7 +103,7 @@ export const Web3ContextProvider: React.FC<{ children: ReactElement }> = ({ chil
     }),
   );
 
-  const hasCachedProvider = (): boolean => {
+  const hasCachedProvider = (): Boolean => {
     if (!web3Modal) return false;
     if (!web3Modal.cachedProvider) return false;
     return true;
@@ -139,7 +137,7 @@ export const Web3ContextProvider: React.FC<{ children: ReactElement }> = ({ chil
   /**
    * throws an error if networkID is not 1 (mainnet) or 4 (rinkeby)
    */
-  const _checkNetwork = (otherChainID: number): boolean => {
+  const _checkNetwork = (otherChainID: number): Boolean => {
     if (chainID !== otherChainID) {
       console.warn("You are switching networks");
       if (otherChainID === 1 || otherChainID === 4) {
@@ -194,22 +192,14 @@ export const Web3ContextProvider: React.FC<{ children: ReactElement }> = ({ chil
     }, 1);
   }, [provider, web3Modal, connected]);
 
-  const onChainProvider = useMemo<onChainProvider>(
+  const onChainProvider = useMemo(
     () => ({ connect, disconnect, hasCachedProvider, provider, connected, address, chainID, web3Modal, uri }),
     [connect, disconnect, hasCachedProvider, provider, connected, address, chainID, web3Modal, uri],
   );
 
   useEffect(() => {
-    // logs non-functioning nodes && returns an array of working mainnet nodes
-    NodeHelper.checkAllNodesStatus().then((validNodes: any) => {
-      validNodes = validNodes.filter((url: boolean | string) => url !== false);
-      if (!validNodes.includes(uri) && NodeHelper.retryOnInvalid()) {
-        // force new provider...
-        setTimeout(() => {
-          window.location.reload();
-        }, 1);
-      }
-    });
+    // logs non-functioning nodes && returns an array of working mainnet nodes, could be used to optimize connection
+    NodeHelper.checkAllNodesStatus();
   }, []);
 
   return <Web3Context.Provider value={{ onChainProvider }}>{children}</Web3Context.Provider>;

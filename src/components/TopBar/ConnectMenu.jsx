@@ -4,7 +4,6 @@ import { Box, Button, SvgIcon, Typography, Popper, Paper, Divider, Link, Slide, 
 import { ReactComponent as ArrowUpIcon } from "../../assets/icons/arrow-up.svg";
 import { ReactComponent as CaretDownIcon } from "../../assets/icons/caret-down.svg";
 import { useWeb3Context } from "src/hooks/web3Context";
-import { Trans } from "@lingui/macro";
 
 function ConnectMenu({ theme }) {
   const { connect, disconnect, connected, web3, chainID } = useWeb3Context();
@@ -16,7 +15,7 @@ function ConnectMenu({ theme }) {
     return state.pendingTransactions;
   });
 
-  let buttonText = <Trans>Connect Wallet</Trans>;
+  let buttonText = "Connect Wallet";
   let clickFunc = connect;
 
   const handleClick = event => {
@@ -24,21 +23,21 @@ function ConnectMenu({ theme }) {
   };
 
   if (isConnected) {
-    buttonText = <Trans>Disconnect</Trans>;
+    buttonText = "Disconnect";
     clickFunc = disconnect;
   }
 
   if (pendingTransactions && pendingTransactions.length > 0) {
-    buttonText = <Trans>In progress</Trans>;
+    buttonText = "In progress";
     clickFunc = handleClick;
   }
 
   const open = Boolean(anchorEl);
   const id = open ? "ohm-popper-pending" : undefined;
 
-  const primaryColor = theme === "light" ? "#49A1F2" : "#F8CC82";
+  const primaryColor = theme === "light" ? "#49A1F2" : "#ef003f";
   const buttonStyles =
-    "pending-txn-container" + (isHovering && pendingTransactions.length > 0 ? " hovered-button" : "");
+    "btn btn-gradi pending-txn-container" + (isHovering && pendingTransactions.length > 0 ? " hovered-button" : "");
 
   const getEtherscanUrl = txnHash => {
     return chainID === 4 ? "https://rinkeby.etherscan.io/tx/" + txnHash : "https://etherscan.io/tx/" + txnHash;
@@ -62,7 +61,6 @@ function ConnectMenu({ theme }) {
       id="wallet-menu"
     >
       <Button
-        id="wallet-button"
         className={buttonStyles}
         variant="contained"
         color="secondary"
@@ -107,9 +105,7 @@ function ConnectMenu({ theme }) {
                     style={{ marginBottom: "0px" }}
                     fullWidth
                   >
-                    <Typography>
-                      <Trans>Disconnect</Trans>
-                    </Typography>
+                    <Typography>Disconnect</Typography>
                   </Button>
                 </Box>
               </Paper>

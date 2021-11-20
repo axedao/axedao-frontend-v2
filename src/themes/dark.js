@@ -1,16 +1,16 @@
 import { createTheme, responsiveFontSizes } from "@material-ui/core/styles";
 import fonts from "./fonts";
-import commonSettings, { handleBackdropFilter } from "./global.js";
+import commonSettings from "./global.js";
 
 // TODO: Break repeated use color values out into list of consts declared here
 // then set the values in darkTheme using the global color variables
 
 const darkTheme = {
   color: "#FCFCFC",
-  gold: "#F8CC82",
-  gray: "#A3A3A3",
-  textHighlightColor: "#F4D092",
-  backgroundColor: "rgba(8, 15, 53, 1)",
+  gold: "#ef003f",
+  gray: "#CCCCCC",
+  textHighlightColor: "#ef003f",
+  backgroundColor: "#000000",
   background: `
     linear-gradient(180deg, rgba(8, 15, 53, 0), rgba(0, 0, 10, 0.9)),
     linear-gradient(333deg, rgba(153, 207, 255, 0.2), rgba(180, 255, 217, 0.08)),
@@ -23,20 +23,20 @@ const darkTheme = {
   paperBg: "rgba(54, 56, 64, 0.4)",
   modalBg: "#24242699",
   popoverBg: "rgba(54, 56, 64, 0.99)",
-  menuBg: handleBackdropFilter("rgba(54, 56, 64, 0.5)"),
+  menuBg: "#36384080",
   backdropBg: "rgba(54, 56, 64, 0.5)",
-  largeTextColor: "#F4D092",
+  largeTextColor: "#ef003f",
   activeLinkColor: "#F5DDB4",
   activeLinkSvgColor:
     "brightness(0) saturate(100%) invert(84%) sepia(49%) saturate(307%) hue-rotate(326deg) brightness(106%) contrast(92%)",
   primaryButtonColor: "#333333",
-  primaryButtonBG: "#F4D092",
+  primaryButtonBG: "#ef003f",
   primaryButtonHoverBG: "#EDD8B4",
   secondaryButtonHoverBG: "rgba(54, 56, 64, 1)",
-  outlinedPrimaryButtonHoverBG: "#F8CC82",
+  outlinedPrimaryButtonHoverBG: "#ef003f",
   outlinedPrimaryButtonHoverColor: "#333333",
   outlinedSecondaryButtonHoverBG: "transparent",
-  outlinedSecondaryButtonHoverColor: "#F8CC82", //gold
+  outlinedSecondaryButtonHoverColor: "#ef003f", //gold
   containedSecondaryButtonHoverBG: "rgba(255, 255, 255, 0.15)",
   graphStrokeColor: "rgba(255, 255, 255, .1)",
 };
@@ -66,7 +66,6 @@ export const dark = responsiveFontSizes(
           secondary: darkTheme.gray,
         },
         graphStrokeColor: darkTheme.graphStrokeColor,
-        highlight: darkTheme.textHighlightColor,
       },
       typography: {
         fontFamily: "Square",
@@ -254,14 +253,14 @@ export const dark = responsiveFontSizes(
             },
           },
           textPrimary: {
-            color: "#A3A3A3",
+            color: "#CCCCCC",
             "&:hover": {
               color: darkTheme.gold,
               backgroundColor: "#00000000",
             },
             "&:active": {
               color: darkTheme.gold,
-              borderBottom: "#F8CC82",
+              borderBottom: "#ef003f",
             },
           },
           textSecondary: {

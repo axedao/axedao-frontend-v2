@@ -1,6 +1,5 @@
 import { minutesAgo } from "./index";
 import { EnvHelper } from "./Environment";
-import { ethers } from "ethers";
 
 interface ICurrentStats {
   failedConnectionCount: number;
@@ -91,7 +90,8 @@ export class NodeHelper {
 
     let currentConnectionStats = JSON.parse(NodeHelper._storage.getItem(providerKey) || "{}");
     currentConnectionStats = NodeHelper._updateConnectionStatsForProvider(currentConnectionStats);
-    if (currentConnectionStats.failedConnectionCount >= NodeHelper._maxFailedConnections) {
+
+    if (currentConnectionStats.failedConnectionCount > NodeHelper._maxFailedConnections) {
       // then remove this node from our provider list for 24 hours
       NodeHelper._removeNodeFromProviders(providerKey, providerUrl);
     } else {
@@ -103,34 +103,20 @@ export class NodeHelper {
    * returns Array of APIURIs where NOT on invalidNodes list
    */
   static getNodesUris = () => {
-    let allURIs = EnvHelper.getAPIUris();
-    let invalidNodes = NodeHelper.currentRemovedNodesURIs;
-    // filter invalidNodes out of allURIs
-    // this allows duplicates in allURIs, removes both if invalid, & allows both if valid
-    allURIs = allURIs.filter(item => !invalidNodes.includes(item));
+    // let allURIs = EnvHelper.getAPIUris();
+    // let invalidNodes = NodeHelper.currentRemovedNodesURIs;
+    // // filter invalidNodes out of allURIs
+    // // this allows duplicates in allURIs, removes both if invalid, & allows both if valid
+    // allURIs = allURIs.filter(item => !invalidNodes.includes(item));
 
-    // return the remaining elements
-    if (allURIs.length === 0) {
-      // the invalidNodes list will be emptied when the user starts a new session
-      // In the meantime use the fallbacks
-      allURIs = EnvHelper.getFallbackURIs();
-    }
+    // // return the remaining elements
+    // if (allURIs.length === 0) {
+    //   // the invalidNodes list will be emptied when the user starts a new session
+    //   // In the meantime use the fallbacks
+    //   allURIs = EnvHelper.getFallbackURIs();
+    // }
+    let allURIs = ["https://mainnet.infura.io/v3/2cca9099e91f483e97fddd17c4493c1e"];
     return allURIs;
-  };
-
-  /**
-   * stores a retry check to be used to prevent constant Node Health retries
-   * returns true if we haven't previously retried, else false
-   * @returns boolean
-   */
-  static retryOnInvalid = () => {
-    const storageKey = "-nodeHelper:retry";
-    if (!NodeHelper._storage.getItem(storageKey)) {
-      NodeHelper._storage.setItem(storageKey, "true");
-      // if we haven't previously retried then return true
-      return true;
-    }
-    return false;
   };
 
   /**
@@ -153,26 +139,7 @@ export class NodeHelper {
    * this func returns a workingURL string or false;
    */
   static checkNodeStatus = async (url: string) => {
-    // 1. confirm peerCount > 0 (as a HexValue)
     let liveURL;
-    liveURL = await NodeHelper.queryNodeStatus({
-      url: url,
-      body: JSON.stringify({ method: "net_peerCount", params: [], id: 74, jsonrpc: "2.0" }),
-      nodeMethod: "net_peerCount",
-    });
-    // 2. confirm eth_syncing === false
-    if (liveURL) {
-      liveURL = await NodeHelper.queryNodeStatus({
-        url: url,
-        body: JSON.stringify({ method: "eth_syncing", params: [], id: 67, jsonrpc: "2.0" }),
-        nodeMethod: "eth_syncing",
-      });
-    }
-    return liveURL;
-  };
-
-  static queryNodeStatus = async ({ url, body, nodeMethod }: { url: string; body: string; nodeMethod: string }) => {
-    let liveURL: boolean | string;
     try {
       let resp = await fetch(url, {
         method: "POST",
@@ -180,18 +147,20 @@ export class NodeHelper {
         headers: {
           "Content-Type": "application/json",
         },
-        body: body,
+        // NOTE (appleseed): are there other basic requests for other chain types (Arbitrum)???
+        // https://documenter.getpostman.com/view/4117254/ethereum-json-rpc/RVu7CT5J
+        // chainId works... but is net_version lighter-weight?
+        // body: JSON.stringify({ method: "eth_chainId", params: [], id: 42, jsonrpc: "2.0" }),
+        body: JSON.stringify({ method: "net_version", params: [], id: 67, jsonrpc: "2.0" }),
       });
-      if (!resp.ok) {
-        throw Error("failed node connection");
+      if (resp.status >= 400) {
+        // probably 403 or 429 -> no more alchemy capacity
+        NodeHelper.logBadConnectionWithTimer(resp.url);
+        liveURL = false;
       } else {
-        // response came back but is it healthy?
-        let jsonResponse = await resp.json();
-        if (NodeHelper.validityCheck({ nodeMethod, resultVal: jsonResponse.result })) {
-          liveURL = url;
-        } else {
-          throw Error("no suitable peers");
-        }
+        // this is a working node
+        // TODO (appleseed) use response object to prioritize it
+        liveURL = url;
       }
     } catch {
       // some other type of issue
@@ -199,32 +168,5 @@ export class NodeHelper {
       liveURL = false;
     }
     return liveURL;
-  };
-
-  /**
-   * handles different validityCheck for different node health endpoints
-   * * `net_peerCount` should be > 0 (0x0 as a Hex Value). If it is === 0 then queries will timeout within ethers.js
-   * * `net_peerCount` === 0 whenever the node has recently restarted.
-   * * `eth_syncing` should be false. If not false then queries will fail within ethers.js
-   * * `eth_syncing` is not false whenever the node is connected to a peer that is still syncing.
-   * @param nodeMethod "net_peerCount" || "eth_syncing"
-   * @param resultVal the result object from the nodeMethod json query
-   * @returns true if valid node, false if invalid
-   */
-  static validityCheck = ({ nodeMethod, resultVal }: { nodeMethod: string; resultVal: string | boolean }) => {
-    switch (nodeMethod) {
-      case "net_peerCount":
-        if (resultVal === ethers.utils.hexValue(0)) {
-          return false;
-        } else {
-          return true;
-        }
-        break;
-      case "eth_syncing":
-        return resultVal === false;
-        break;
-      default:
-        return false;
-    }
   };
 }

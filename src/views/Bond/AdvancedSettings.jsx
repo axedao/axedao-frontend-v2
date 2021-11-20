@@ -11,7 +11,6 @@ import {
   InputAdornment,
 } from "@material-ui/core";
 import { ReactComponent as XIcon } from "../../assets/icons/x.svg";
-import { t, Trans } from "@lingui/macro";
 import "./bondSettings.scss";
 
 function AdvancedSettings({
@@ -33,9 +32,7 @@ function AdvancedSettings({
         </Box>
 
         <Box className="card-content">
-          <InputLabel htmlFor="slippage">
-            <Trans>Slippage</Trans>
-          </InputLabel>
+          <InputLabel htmlFor="slippage">Slippage</InputLabel>
           <FormControl variant="outlined" color="primary" fullWidth>
             <OutlinedInput
               id="slippage"
@@ -48,19 +45,17 @@ function AdvancedSettings({
             />
             <div className="help-text">
               <Typography variant="body2" color="textSecondary">
-                <Trans>Transaction may revert if price changes by more than slippage %</Trans>
+                Transaction may revert if price changes by more than slippage %
               </Typography>
             </div>
           </FormControl>
 
-          <InputLabel htmlFor="recipient">
-            <Trans>Recipient Address</Trans>
-          </InputLabel>
+          <InputLabel htmlFor="recipient">Recipient Address</InputLabel>
           <FormControl variant="outlined" color="primary" fullWidth>
             <OutlinedInput id="recipient" value={recipientAddress} onChange={onRecipientAddressChange} type="text" />
             <div className="help-text">
               <Typography variant="body2" color="textSecondary">
-                <Trans>Choose recipient address. By default, this is your currently connected address</Trans>
+                Choose recipient address. By default, this is your currently connected address
               </Typography>
             </div>
           </FormControl>

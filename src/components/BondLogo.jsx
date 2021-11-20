@@ -9,6 +9,9 @@ function BondLogo({ bond }) {
     viewBox = "0 0 64 32";
     style = { height: "32px", width: "62px" };
   }
+  if (bond.name === "axe_dai_lp") {
+    viewBox = "0 0 1555 1555";
+  }
 
   return (
     <Box display="flex" alignItems="center" justifyContent="center" width={"64px"}>
