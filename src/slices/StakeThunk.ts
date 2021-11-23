@@ -114,7 +114,8 @@ export const changeStake = createAsyncThunk(
       dispatch(error("Please connect your wallet!"));
       return;
     }
-
+    const depositorAddress = address;
+    
     const signer = provider.getSigner();
     const staking = new ethers.Contract(addresses[networkID].STAKING_ADDRESS as string, OlympusStaking, signer);
     const stakingHelper = new ethers.Contract(
@@ -134,7 +135,7 @@ export const changeStake = createAsyncThunk(
     try {
       if (action === "stake") {
         uaData.type = "stake";
-        stakeTx = await stakingHelper.stake(ethers.utils.parseUnits(value, "gwei"));
+        stakeTx = await stakingHelper.stake(ethers.utils.parseUnits(value, "gwei"), depositorAddress);
       } else {
         uaData.type = "unstake";
         stakeTx = await staking.unstake(ethers.utils.parseUnits(value, "gwei"), true);

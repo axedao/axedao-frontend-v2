@@ -10,8 +10,8 @@ export default function Audited() {
         <hr />
         <h3>Secured by</h3>
         <div>
-          <Link href="#">
-            <img className="none-audit" src={SolidProofLogo}/>
+          <Link href="https://github.com/solidproof/smart-contract-audits/blob/main/SmartContract_Audit_Solidproof_AxeDao.pdf"  target="_blank">
+            <img src={SolidProofLogo}/>
           </Link>
           <Link href="https://github.com/TechRate/Smart-Contract-Audits/blob/main/November/AxeDAO.pdf" target="_blank">
             <img src={TechRateLogo}/>

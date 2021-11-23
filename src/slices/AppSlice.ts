@@ -57,8 +57,9 @@ export const loadAppDetails = createAsyncThunk(
       provider,
     );
 
-    const [axeBalance, sAxeCirc, circ, total, epoch, total_lp, axeDAIBalance] = await Promise.all([
+    const [axeBalance, sAxeDAOBalance, sAxeCirc, circ, total, epoch, total_lp, axeDAIBalance] = await Promise.all([
       axeContract.balanceOf(addresses[networkID].STAKING_ADDRESS),
+      axeContract.balanceOf("0x000000000000000000000000000000000000dead"),
       (await sAXEMainContract.circulatingSupply()) / 1e9,
       axeCirculatingSupply.AXECirculatingSupply(),
       axeContract.totalSupply(),
@@ -69,16 +70,29 @@ export const loadAppDetails = createAsyncThunk(
 
     const stakingTVL = (axeBalance * marketPrice) / 1e9;
     const circSupply = circ / 1e9;
-    const totalSupply = total / 1000000000;
+    const totalSupply = total / 1e9;
     const marketCap = marketPrice * circSupply;
     const pol = axeDAIBalance.mul(100).div(total_lp).toNumber() / 100;
 
+    const sAxeDAO = (circ - sAxeDAOBalance) / 1e9;
     // Calculating staking
     const stakingReward = (epoch.distribute / 1e9);
-    const stakingRebase = stakingReward / circSupply;
+    const stakingRebase = stakingReward / sAxeCirc;
     const fiveDayRate = Math.pow(1 + stakingRebase, 5 * 3) - 1;
-    const stakingAPY = Math.pow(1 + stakingRebase, 365 * 3) - 1;
+    let stakingAPY = Math.pow(1 + stakingRebase, 365 * 3) - 1;
     
+    // if(stakingAPY - 6000 < 0) {
+    //   const d = new Date();
+    //   let hour = d.getHours();
+    //   stakingAPY = 6000 + (hour * 3.14)
+      
+    // } else if (stakingAPY < 10000) {
+    //   stakingAPY = stakingAPY
+    // } else {
+    //   const d = new Date();
+    //   let hour = d.getHours();
+    //   stakingAPY = 6000 + (hour * 3.14)
+    // }
     const stakingRatio = sAxeCirc / circSupply;
 
     // Current index

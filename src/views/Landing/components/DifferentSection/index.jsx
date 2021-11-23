@@ -23,7 +23,7 @@ export default function DifferentSection() {
       <div className="container">
         <div className="section-wrapper">
           <div>
-            <h2>A true Store of Value doesn’r exist - yet</h2>
+            <h2>A true Store of Value doesn't exist - yet</h2>
             <ul>
               <li>
                 <p>

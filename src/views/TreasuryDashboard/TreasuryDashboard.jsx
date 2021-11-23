@@ -104,7 +104,7 @@ function TreasuryDashboard() {
                 </h1>
                 <p>The Decentralized Reserve Currency</p>
               </div>
-              <img src={DashboardIcon} />
+              {/* <img src={DashboardIcon} /> */}
             </div>
             <Box
               className="ohm-card-content"
