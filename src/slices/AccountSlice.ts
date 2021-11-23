@@ -2,30 +2,39 @@ import { ethers } from "ethers";
 import { addresses } from "../constants";
 import { abi as ierc20Abi } from "../abi/IERC20.json";
 import { abi as sOHMv2 } from "../abi/sOhmv2.json";
-
 import { setAll } from "../helpers";
-
 import { createAsyncThunk, createSelector, createSlice } from "@reduxjs/toolkit";
 import { Bond, NetworkID } from "src/lib/Bond"; // TODO: this type definition needs to move out of BOND.
 import { RootState } from "src/store";
 import { IBaseAddressAsyncThunk, ICalcUserBondDetailsAsyncThunk } from "./interfaces";
+import multicall from '../helpers/multicall'
+import { abi as calculateUserBondDetailsABI } from "../abi/custom/calculateUserBondDetails.json";
 
 export const getBalances = createAsyncThunk(
   "account/getBalances",
   async ({ address, networkID, provider }: IBaseAddressAsyncThunk) => {
-    const axeContract = new ethers.Contract(addresses[networkID].AXE_ADDRESS as string, ierc20Abi, provider);
-    const axeBalance = await axeContract.balanceOf(address);
-    const saxeContract = new ethers.Contract(addresses[networkID].SAXE_ADDRESS as string, ierc20Abi, provider);
-    const saxeBalance = await saxeContract.balanceOf(address);
-    let poolBalance = 0;
-    const poolTokenContract = new ethers.Contract(addresses[networkID].PT_TOKEN_ADDRESS as string, ierc20Abi, provider);
-    poolBalance = await poolTokenContract.balanceOf(address);
+    // const axeContract = new ethers.Contract(addresses[networkID].AXE_ADDRESS as string, ierc20Abi, provider);
+    // const axeBalance = await axeContract.balanceOf(address);
+    // const saxeContract = new ethers.Contract(addresses[networkID].SAXE_ADDRESS as string, ierc20Abi, provider);
+    // const saxeBalance = await saxeContract.balanceOf(address);
+
+    const calls = [
+      { address: addresses[networkID].DAI_ADDRESS, name: 'balanceOf', params: [address] },
+      { address: addresses[networkID].AXE_ADDRESS, name: 'balanceOf', params: [address] },
+      { address: addresses[networkID].SAXE_ADDRESS, name: 'balanceOf', params: [address] }
+    ];
+    const rawBalance = await multicall(networkID, provider, ierc20Abi, calls)
+    // console.log(rawBalance);
+    const daiBalance = rawBalance[0][0];
+    const axeBalance = rawBalance[1][0];
+    const saxeBalance = rawBalance[2][0];
+    
 
     return {
       balances: {
+        dai: ethers.utils.formatUnits(daiBalance, "gwei"),
         ohm: ethers.utils.formatUnits(axeBalance, "gwei"),
         sohm: ethers.utils.formatUnits(saxeBalance, "gwei"),
-        pool: ethers.utils.formatUnits(poolBalance, "gwei"),
       },
     };
   },
@@ -33,46 +42,26 @@ export const getBalances = createAsyncThunk(
 
 export const loadAccountDetails = createAsyncThunk(
   "account/loadAccountDetails",
-  async ({ networkID, provider, address }: IBaseAddressAsyncThunk) => {
+  async ({ networkID, provider, address }: IBaseAddressAsyncThunk, { dispatch }) => {
     let axeBalance = 0;
     let saxeBalance = 0;
     let stakeAllowance = 0;
     let unstakeAllowance = 0;
     let daiBondAllowance = 0;
-    let poolAllowance = 0;
 
-    const daiContract = new ethers.Contract(addresses[networkID].DAI_ADDRESS as string, ierc20Abi, provider);
-    const daiBalance = await daiContract.balanceOf(address);
+    const axeContract = new ethers.Contract(addresses[networkID].AXE_ADDRESS as string, ierc20Abi, provider);
+    stakeAllowance = await axeContract.allowance(address, addresses[networkID].STAKING_HELPER_ADDRESS);
 
-    if (addresses[networkID].AXE_ADDRESS) {
-      const axeContract = new ethers.Contract(addresses[networkID].AXE_ADDRESS as string, ierc20Abi, provider);
-      axeBalance = await axeContract.balanceOf(address);
-      stakeAllowance = await axeContract.allowance(address, addresses[networkID].STAKING_HELPER_ADDRESS);
-    }
+    const saxeContract = new ethers.Contract(addresses[networkID].SAXE_ADDRESS as string, sOHMv2, provider);
+    unstakeAllowance = await saxeContract.allowance(address, addresses[networkID].STAKING_ADDRESS);
 
-    if (addresses[networkID].SAXE_ADDRESS) {
-      const saxeContract = new ethers.Contract(addresses[networkID].SAXE_ADDRESS as string, sOHMv2, provider);
-      saxeBalance = await saxeContract.balanceOf(address);
-      unstakeAllowance = await saxeContract.allowance(address, addresses[networkID].STAKING_ADDRESS);
-      poolAllowance = await saxeContract.allowance(address, addresses[networkID].PT_PRIZE_POOL_ADDRESS);
-    }
+    await dispatch(getBalances({ address, networkID, provider }));
 
     return {
-      balances: {
-        dai: ethers.utils.formatEther(daiBalance),
-        ohm: ethers.utils.formatUnits(axeBalance, "gwei"),
-        sohm: ethers.utils.formatUnits(saxeBalance, "gwei"),
-      },
       staking: {
         ohmStake: +stakeAllowance,
         ohmUnstake: +unstakeAllowance,
-      },
-      bonding: {
-        daiAllowance: daiBondAllowance,
-      },
-      pooling: {
-        sohmPool: +poolAllowance,
-      },
+      }
     };
   },
 );
@@ -102,21 +91,30 @@ export const calculateUserBondDetails = createAsyncThunk(
     // dispatch(fetchBondInProgress());
 
     // Calculate bond details.
-    const bondContract = bond.getContractForBond(networkID, provider);
-    const reserveContract = bond.getContractForReserve(networkID, provider);
+    // const bondContract = bond.getContractForBond(networkID, provider);
+    // const reserveContract = bond.getContractForReserve(networkID, provider);
 
     let interestDue, pendingPayout, bondMaturationTime;
-
-    const bondDetails = await bondContract.bondInfo(address);
+    const bondAddress = bond.getAddressForBond(networkID)
+    const reserveAddress = bond.getAddressForReserve(networkID)
+    const calls = [
+      { address: bondAddress, name: 'bondInfo', params: [address] },
+      { address: bondAddress, name: 'pendingPayoutFor', params: [address] },
+      { address: reserveAddress, name: 'allowance', params: [address, bondAddress] },
+      { address: reserveAddress, name: 'balanceOf', params: [address] },
+    ];
+    const rawBond = await multicall(networkID, provider, calculateUserBondDetailsABI, calls)
+    
+    const bondDetails = rawBond[0];
     
     interestDue = bondDetails.payout / Math.pow(10, 9);
     bondMaturationTime = +bondDetails.vesting + +bondDetails.lastTimestamp;
-    pendingPayout = await bondContract.pendingPayoutFor(address);
+    pendingPayout = rawBond[1][0];
 
     let allowance,
       balance = 0;
-    allowance = await reserveContract.allowance(address, bond.getAddressForBond(networkID));
-    balance = await reserveContract.balanceOf(address);
+    allowance = rawBond[2][0];
+    balance = rawBond[3][0];
     // formatEthers takes BigNumber => String
     // const balanceVal = ethers.utils.formatEther(balance);
     // balanceVal should NOT be converted to a number. it loses decimal precision
@@ -145,14 +143,13 @@ interface IAccountSlice {
     ohm: string;
     sohm: string;
     dai: string;
-    oldsohm: string;
   };
   loading: boolean;
 }
 const initialState: IAccountSlice = {
   loading: false,
   bonds: {},
-  balances: { ohm: "", sohm: "", dai: "", oldsohm: "" },
+  balances: { ohm: "", sohm: "", dai: "" },
 };
 
 const accountSlice = createSlice({

@@ -15,7 +15,7 @@ import {
   IRedeemAllBondsAsyncThunk,
   IRedeemBondAsyncThunk,
 } from "./interfaces";
-import { segmentUA } from "../helpers/userAnalyticHelpers";
+import multicall from '../helpers/multicall'
 
 export const changeApproval = createAsyncThunk(
   "bonding/changeApproval",
@@ -88,10 +88,26 @@ export const calcBondDetails = createAsyncThunk(
     const bondContract = bond.getContractForBond(networkID, provider);
     const bondCalcContract = getBondCalculator(networkID, provider);
 
-    const terms = await bondContract.terms();
-    const maxBondPrice = await bondContract.maxPayout();
-    const debtRatio = (await bondContract.standardizedDebtRatio()) / Math.pow(10, 9);
-    const totalDebt = await bondContract.totalDebt();
+    const bondAddress = bond.getAddressForBond(networkID);
+    const calls = [
+      { address: bondAddress, name: 'terms', params: [] },
+      { address: bondAddress, name: 'maxPayout', params: [] },
+      { address: bondAddress, name: 'standardizedDebtRatio', params: [] },
+      { address: bondAddress, name: 'totalDebt', params: [] },
+      { address: bondAddress, name: 'bondPriceInUSD', params: [] },
+    ]
+    // @ts-ignore
+    const rawBondInfo = await multicall(networkID, provider, bond.bondContractABI, calls)
+
+    const terms = rawBondInfo[0];
+    const maxBondPrice = rawBondInfo[1][0];
+    const debtRatio = rawBondInfo[2][0] / 1e9;
+    const totalDebt = rawBondInfo[3][0];
+    bondPrice = rawBondInfo[4][0];
+    // const terms = await bondContract.terms();
+    // const maxBondPrice = await bondContract.maxPayout();
+    // const debtRatio = (await bondContract.standardizedDebtRatio()) / Math.pow(10, 9);
+    // const totalDebt = await bondContract.totalDebt();
     const maxDebt = terms.maxDebt;
     let isSoldOut = false;
     if (Number(totalDebt) >= Number(maxDebt)) {
@@ -110,7 +126,7 @@ export const calcBondDetails = createAsyncThunk(
     }
 
     try {
-      bondPrice = await bondContract.bondPriceInUSD();
+      // bondPrice = await bondContract.bondPriceInUSD();
       // bondDiscount = (marketPrice * Math.pow(10, 9) - bondPrice) / bondPrice; // 1 - bondPrice / (bondPrice * Math.pow(10, 9));
       bondDiscount = (marketPrice * Math.pow(10, 18) - bondPrice) / bondPrice; // 1 - bondPrice / (bondPrice * Math.pow(10, 9));
     } catch (e) {

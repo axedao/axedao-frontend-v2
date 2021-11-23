@@ -11,6 +11,8 @@ import { createSlice, createSelector, createAsyncThunk } from "@reduxjs/toolkit"
 import { RootState } from "src/store";
 import { IBaseAsyncThunk } from "./interfaces";
 import { calcRunway } from "src/helpers/Runway";
+import multicall from '../helpers/multicall'
+import { abi as loadAppDetailsABI } from "../abi/custom/loadAppDetails.json";
 
 const initialState = {
   loading: false,
@@ -28,11 +30,6 @@ const circulatingSupply = {
 export const loadAppDetails = createAsyncThunk(
   "app/loadAppDetails",
   async ({ networkID, provider }: IBaseAsyncThunk, { dispatch }) => {
-    const stakingContract = new ethers.Contract(
-      addresses[networkID].STAKING_ADDRESS as string,
-      OlympusStakingv2,
-      provider,
-    );
 
     // NOTE (appleseed): marketPrice from Graph was delayed, so get CoinGecko price
     // const marketPrice = parseFloat(graphData.data.protocolMetrics[0].ohmPrice);
@@ -48,25 +45,28 @@ export const loadAppDetails = createAsyncThunk(
       return;
     }
 
-    const pairContract = new ethers.Contract(addresses[networkID].AXE_DAI_LP as string, ohmDAI, provider);
-    const sAXEMainContract = new ethers.Contract(addresses[networkID].SAXE_ADDRESS as string, sOHMv2, provider);
-    const axeContract = new ethers.Contract(addresses[networkID].AXE_ADDRESS as string, ierc20Abi, provider);
-    const axeCirculatingSupply = new ethers.Contract(
-      addresses[networkID].AXE_CIRCULATING_SUPPLY as string,
-      AxeCirculatingSupply,
-      provider,
-    );
+    const calls = [
+      { address: addresses[networkID].AXE_ADDRESS, name: 'balanceOf', params: [addresses[networkID].STAKING_ADDRESS] },
+      { address: addresses[networkID].AXE_ADDRESS, name: 'balanceOf', params: ["0x000000000000000000000000000000000000dead"] },
+      { address: addresses[networkID].SAXE_ADDRESS, name: 'circulatingSupply', params: [] },
+      { address: addresses[networkID].AXE_CIRCULATING_SUPPLY, name: 'AXECirculatingSupply', params: [] },
+      { address: addresses[networkID].AXE_ADDRESS, name: 'totalSupply', params: [] },
+      { address: addresses[networkID].STAKING_ADDRESS, name: 'epoch', params: [] },
+      { address: addresses[networkID].AXE_DAI_LP, name: 'totalSupply', params: [] },
+      { address: addresses[networkID].AXE_DAI_LP, name: 'balanceOf', params: [addresses[networkID].TREASURY_ADDRESS] },
+      { address: addresses[networkID].STAKING_ADDRESS, name: 'index', params: [] },
+    ];
+    const rawAppDetails = await multicall(networkID, provider, loadAppDetailsABI, calls)
 
-    const [axeBalance, sAxeDAOBalance, sAxeCirc, circ, total, epoch, total_lp, axeDAIBalance] = await Promise.all([
-      axeContract.balanceOf(addresses[networkID].STAKING_ADDRESS),
-      axeContract.balanceOf("0x000000000000000000000000000000000000dead"),
-      (await sAXEMainContract.circulatingSupply()) / 1e9,
-      axeCirculatingSupply.AXECirculatingSupply(),
-      axeContract.totalSupply(),
-      stakingContract.epoch(),
-      pairContract.totalSupply(),
-      pairContract.balanceOf(addresses[networkID].TREASURY_ADDRESS)
-    ])
+    const axeBalance = rawAppDetails[0][0];
+    const sAxeDAOBalance = rawAppDetails[1][0];
+    const sAxeCirc = rawAppDetails[2][0] / 1e9;
+    const circ = rawAppDetails[3][0];
+    const total = rawAppDetails[4][0];
+    const epoch = rawAppDetails[5];
+    const total_lp = rawAppDetails[6][0];
+    const axeDAIBalance = rawAppDetails[7][0];
+    const currentIndex = rawAppDetails[8][0];
 
     const stakingTVL = (axeBalance * marketPrice) / 1e9;
     const circSupply = circ / 1e9;
@@ -80,24 +80,7 @@ export const loadAppDetails = createAsyncThunk(
     const stakingRebase = stakingReward / sAxeCirc;
     const fiveDayRate = Math.pow(1 + stakingRebase, 5 * 3) - 1;
     let stakingAPY = Math.pow(1 + stakingRebase, 365 * 3) - 1;
-    
-    // if(stakingAPY - 6000 < 0) {
-    //   const d = new Date();
-    //   let hour = d.getHours();
-    //   stakingAPY = 6000 + (hour * 3.14)
-      
-    // } else if (stakingAPY < 10000) {
-    //   stakingAPY = stakingAPY
-    // } else {
-    //   const d = new Date();
-    //   let hour = d.getHours();
-    //   stakingAPY = 6000 + (hour * 3.14)
-    // }
     const stakingRatio = sAxeCirc / circSupply;
-
-    // Current index
-    let currentIndex = await stakingContract.index();
-    currentIndex = currentIndex;
     const nextRebase = epoch.endTime.toNumber();
 
     const runway = await calcRunway(circSupply, stakingRebase, { networkID, provider });
